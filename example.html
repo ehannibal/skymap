@@ -1,7 +1,19 @@
 <!-- An example skymap of the first few HESE events -->
+
 <!DOCTYPE html>
 <html>
 <head>
+
+  <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+  <link rel="stylesheet" href="/resources/demos/style.css">
+  <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+  <script>
+  $( function() {
+    $( "input" ).checkboxradio();
+  } );
+  </script>
+
 <meta charset="UTF-8">
 <title>Skymap</title>
 <style>
@@ -11,6 +23,22 @@ body {
 </style>
 </head>
 <body>
+
+<div class="widget">
+  <h2>Datasets (does nothing yet)</h2>
+  <fieldset>
+    <legend>Datasets: </legend>
+    <label for="checkbox-1">Neutrinos</label>
+    <input type="checkbox" name="checkbox-1" id="checkbox-1">
+    <label for="checkbox-2">Gamma Rays</label>
+    <input type="checkbox" name="checkbox-2" id="checkbox-2">
+    <label for="checkbox-3">Martians</label>
+    <input type="checkbox" name="checkbox-3" id="checkbox-3">
+    <label for="checkbox-4">Beans</label>
+    <input type="checkbox" name="checkbox-4" id="checkbox-4">
+  </fieldset>
+  </div>
+
 <script src="d3.v4.min.js"></script>
 <script src="d3-geo-projection.v2.min.js"></script>
 <script src="astro.js"></script>
@@ -212,96 +240,216 @@ var types = {
 
 astrojs.ready(function(e){
 
-  var hese = [
-    {dec: -1.8, ra: 35.2, err: 16.3, type: types.shower},
-    {dec: -28.0, ra: 282.6, err: 25.4, type: types.shower},
-    {dec: -31.2, ra: 127.9, err: 1.4, type: types.track}
-  ];
+//
+//
+//
 
-  // make a canvas
-  var width = 960,
-      height = 500;
-  var canvas = d3.select("body").append("canvas")
-    .attr("width", width)
-    .attr("height", height);
-  var context = canvas.node().getContext("2d");
-  var coords, coords2;
-  var projection = d3.geoMollweide()
-      .scale(165)
-      .translate([width / 2, height / 2])
-      .precision(.1);
 
-  // mirror the projection so it matches official plots
-  var project = function(d) {
-    return projection([(d[0]-180)*-1,d[1]]);
-  };
 
-  // add background
-  var path = d3.geoPath()
-      .projection(projection)
-      .context(context);
-  var graticule = d3.geoGraticule()
-          .step([30, 30]);
-  context.clearRect(0,0,width,height);
-  context.beginPath();
-  path({type: "Sphere"});
-  context.lineWidth = 2;
-  context.stroke();
-  reset_styles(context);
+//WORKING AREA
+var stringtext = "";
+function readTextFile(file, ready)
+{
 
-  context.beginPath();
-  path(graticule());
-  context.strokeStyle = 'grey';
-  context.setLineDash([1,6]);
-  context.stroke();
-  reset_styles(context);
+   var rawFile = new XMLHttpRequest();
+    rawFile.open("GET", file);
+    rawFile.onload = function(data) {
+    	console.log("onload");
+    	console.log(data);
+    };
+    rawFile.overrideMimeType("text/plain; charset=x-user-defined");
+    rawFile.onreadystatechange = function ()
+    {
+        if(rawFile.readyState === 4)
+        {
+            if(rawFile.status === 200 || rawFile.status == 0)
+            {
+                stringtext = rawFile.responseText;
+                //console.log(rawFile);
+                ready(stringtext);
 
-  var mydraw = draw(context,project);
+            }
+        }
+    };
+    
+    rawFile.addEventListener("progress", function(){console.log("progress");});
+	rawFile.addEventListener("load", function(){console.log("load");});
+	rawFile.addEventListener("error", function(evt){
+		console.log("error");
+		console.log(evt);
+	});
+	rawFile.addEventListener("abort", function(){console.log("abort");});
+    rawFile.send();
+    
 
-  // make equator
-  mydraw.line({
-    coords: [[0,0],[360,0]],
-    wrap: false,
-    strokeStyle: "grey"
-  });
+}
 
-  // make galactic plane
-  var plane_data = [];
-  for(var i=-180;i<180;i+=.1) {
-    var tmp = astrojs.coordinates.galactic2equatorial(i,0);
-    plane_data.push([tmp.ra, tmp.dec]);
-  }  
-  mydraw.line({
-    coords: plane_data,
-    strokeStyle: "grey"
-  });
+readTextFile("/output.txt", function(stringtext){
+var hese = [];
+	
+	var words = stringtext.split("\n");
+	console.log(words);
+	for (var o  = 0; o < 10; o++)
+	{
+	//console.log(words[0]);
+	console.log("O : "+o);
+		var word = words[o].split(" ");
+		//console.log(word)
+		
+		hese.splice(-1, 0, {'dec': word[1], 'ra': word[3], 'err': word[5], 'type': types[word[7].toLowerCase()]});
+	}
+	console.log(hese[7]);
+	console.log(hese);
+	
 
-  // draw hese data
-  for (var i=0;i<hese.length;i++) {
-    mydraw.circle({
-      coords: [hese[i].ra, hese[i].dec],
-      radius: 6,
-      fill: true,
-      stroke: false,
-      fillStyle: "red",
-      raw: true
-    })
-    if (hese[i].type != undefined && hese[i].type != null) {
-      hese[i].type(mydraw, project([hese[i].ra, hese[i].dec]), 6);
-    }
-    mydraw.text({
-      coords: [hese[i].ra, hese[i].dec],
-      font: "16px sans-serif",
-      text: ""+(i+1)
-    });
-    if (hese[i].err > 6)
-      mydraw.circle({
-        coords: [hese[i].ra, hese[i].dec],
-        radius: hese[i].err,
-        strokeStyle: "red",
-        wrap: true
-      });
-  }
+//Data from emm
+	hese.splice(-1,0,
+	{dec: -1.8, ra: 35.2, err: 16.3, type: types.shower},
+	{dec: -28.0, ra: 282.6, err: 25.4, type: types.shower},   
+	{dec: -31.2, ra: 127.9, err: 1.4, type: types.track},
+    {dec: -51.2, ra: 169.5, err: 7.1, type: types.shower},
+    {dec: -.04, ra: 110.6, err: 1.2, type: types.track},
+    {dec: -27.2, ra: 133.9, err: 9.8, type: types.shower},
+    {dec: -45.1, ra: 15.6, err: 24.1, type: types.shower},
+   	{dec: -21.2, ra: 182.4, err: 1.3, type: types.track},
+   	{dec: 33.6, ra: 151.3, err: 16.5, type: types.shower},
+	{dec: -29.4, ra: 5.0, err: 8.1, type: types.shower},
+	{dec: -8.9, ra: 155.3, err: 16.7, type: types.shower},   		
+	{dec: -52.8, ra: 296.1, err: 9.8, type: types.shower},
+	{dec: 40.3, ra: 67.9, err: 1.2, type: types.track},
+	{dec: -27.9, ra: 265.6, err: 13.2, type: types.shower},   	
+	{dec: -49.7, ra: 287.3, err: 19.7, type: types.shower}, 
+	{dec: -22.6, ra: 192.1, err: 19.4, type: types.shower}, 
+	{dec: 14.5, ra: 247.4, err: 11.6, type: types.shower}, 
+	{dec: -24.8, ra: 345.6, err: 1.3, type: types.track}, 
+	{dec: -59.7, ra: 76.9, err: 9.7, type: types.shower}, 
+	{dec: -67.2, ra: 38.3, err: 10.7, type: types.shower}, 
+	{dec: -24.0, ra: 9.0, err: 20.9, type: types.shower}, 
+	{dec: -22.1, ra: 293.7, err: 12.1, type: types.shower}, 
+	{dec: -13.2, ra: 208.7, err: 1.9, type: types.track}, 	
+	{dec: -15.1, ra: 282.2, err: 15.5, type: types.shower}, 
+	{dec: -14.5, ra: 286.0, err: 46.3, type: types.shower}, 
+	{dec: 22.7, ra: 143.4, err: 11.8, type: types.shower}, 
+	{dec: -12.6, ra: 121.7, err: 6.6, type: types.shower}, 
+	{dec: -71.5, ra: 164.8, err: 1.3, type: types.track}, 
+	{dec: 41.0, ra: 298.1, err: 7.4, type: types.shower}, 
+	{dec: -82.7, ra: 103.2, err: 8.0, type: types.shower}, 
+	{dec: 78.3, ra: 146.1, err: 26.0, type: types.shower},
+	{dec: 7.8, ra: 292.5, err: 13.5, type: types.shower}, 
+	{dec: 31.3, ra: 323.4, err: 42.7, type: types.shower}, 
+	{dec: -55.8, ra: 208.4, err: 15.9, type: types.shower}, 
+	{dec: -3.0, ra: 257.7, err: 11.7, type: types.shower}, 
+	{dec: 20.7, ra: 167.3, err: 1.2, type: types.track}, 
+	{dec: 14.0, ra: 93.3, err: 1.2, type: types.track}, 
+	{dec: -17.9, ra: 106.2, err: 14.2, type: types.shower}, 
+	{dec: -48.5, ra: 143.9, err: 11.7, type: types.shower}, 
+	{dec: 3.3, ra: 66.1, err: 11.1, type: types.shower}, 
+	{dec: -25.3, ra: 42.5, err: 20.7, type: types.shower}, 
+	{dec: -22.0, ra: 206.6, err: 1.3, type: types.track}, 
+	{dec: 0.0, ra: 336.7, err: 1.2, type: types.track},  
+	{dec: -86.3, ra: 219.0, err: 1.2, type: types.track}, 
+	{dec: -22.3, ra: 150.5, err: 7.6, type: types.shower}, 
+	{dec: 67.4, ra: 209.4, err: 1.2, type: types.track}, 
+	{dec: -33.2, ra: 213.0, err: 8.1, type: types.shower}, 
+	{dec: -26.3, ra: 203.2, err: 21.8, type: types.shower}, 
+	{dec: 59.3, ra: 168.6, err: 8.2, type: types.shower}, 
+	{dec: 54.0, ra: 88.6, err: 6.5, type: types.shower}, 
+	{dec: -54.0, ra: 252.8, err: 7.8, type: types.shower}, 
+	{dec: -37.7, ra: 239.0, err: 1.2, type: types.track}, 
+	{dec: 6.0, ra: 170.5, err: 11.6, type: types.shower}
+	  );
+
+	  // make a canvas
+	  var width = 960,
+		  height = 500;
+	  var canvas = d3.select("body").append("canvas")
+		.attr("width", width)
+		.attr("height", height);
+	  var context = canvas.node().getContext("2d");
+	  var coords, coords2;
+	  var projection = d3.geoMollweide()
+		  .scale(165)
+		  .translate([width / 2, height / 2])
+		  .precision(.1);
+
+	  // mirror the projection so it matches official plots
+	  var project = function(d) {
+		return projection([(d[0]-180)*-1,d[1]]);
+	  };
+
+	  // add background
+	  var path = d3.geoPath()
+		  .projection(projection)
+		  .context(context);
+	  var graticule = d3.geoGraticule()
+			  .step([30, 30]);
+	  context.clearRect(0,0,width,height);
+	  context.beginPath();
+	  path({type: "Sphere"});
+	  context.lineWidth = 2;
+	  context.stroke();
+	  reset_styles(context);
+
+	  context.beginPath();
+	  path(graticule());
+	  context.strokeStyle = 'grey';
+	  context.setLineDash([1,6]);
+	  context.stroke();
+	  reset_styles(context);
+
+	  var mydraw = draw(context,project);
+
+	  // make equator
+	  mydraw.line({
+		coords: [[0,0],[360,0]],
+		wrap: false,
+		strokeStyle: "grey"
+	  });
+
+	  // make galactic plane
+	  var plane_data = [];
+	  for(var i=-180;i<180;i+=.1) {
+		var tmp = astrojs.coordinates.galactic2equatorial(i,0);
+		plane_data.push([tmp.ra, tmp.dec]);
+	  }  
+	  mydraw.line({
+		coords: plane_data,
+		strokeStyle: "grey"
+	  });
+
+	  // draw hese data
+	  for (var i=0;i<hese.length;i++) {
+	  console.log("I at 345: " + i);
+	  console.log("hese at i: " + hese[0]);
+	  
+		mydraw.circle({
+		  coords: [hese[i].ra, hese[i].dec],
+		  radius: 6,
+		  fill: true,
+		  stroke: false,
+		  fillStyle: "red",
+		  raw: true
+		})
+		if (hese[i].type != undefined && hese[i].type != null) {
+		  hese[i].type(mydraw, project([hese[i].ra, hese[i].dec]), 6);
+		}
+		mydraw.text({
+		  coords: [hese[i].ra, hese[i].dec],
+		  font: "16px sans-serif",
+		  text: ""+(i+1)
+		});
+		if (hese[i].err > 6)
+		  mydraw.circle({
+			coords: [hese[i].ra, hese[i].dec],
+			radius: hese[i].err,
+			strokeStyle: "red",
+			wrap: true
+		  });
+		function findColor(i){
+			
+		}
+	  }
+	});
 });
 </script>
 </body>
