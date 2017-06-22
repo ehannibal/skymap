@@ -313,7 +313,7 @@ console.log(param);
 	console.log(hese);
 	
 
-//Data from emm
+//Data from Emme
 	/*hese.splice(-1,0,
 	{dec: -1.8, ra: 35.2, err: 16.3, type: types.shower},
 	{dec: -28.0, ra: 282.6, err: 25.4, type: types.shower},   
@@ -497,7 +497,37 @@ console.log(param);
 	  }
 	  
 		function findColor(i){//WORK ON
+			var energy = 
 			
+			hese[i]["energy"]
+			function datasets(e) {
+				graph.datasets[0].points[4].fillColor = "#9A00FF"); //The # code indicates a specific color I chose to represent the data
+				var fill4purple = #9A00FF //defining the color
+	
+					if (graph.datasets.points.value > 1000) { //establishing a data range
+    					graph.datasets.points.fillColor = fill4purple; //fill the specific color into the outlined data set
+    					graph.update();
+ 
+				graph.datasets.points.fillColor = "#B74AFF"; 
+				var fill3purple = #B74AFF
+	
+					if (graph.datasets.points.value >= 200 and graph.datasets.points.value < 1000) {
+    					graph.datasets.points.fillColor = fill3purple;
+    					graph.update();
+    			
+    				graph.datasets[0].points[4].fillColor = "#D28DFF"; 
+				var fill2purple = #D28DFF
+	
+					if (graph.datasets.points.value >= 100 and graph.datasets.points.value < 200) {
+    					graph.datasets.points.fillColor = fill2purple;
+    					graph.update();
+    			
+			    	graph.datasets.points.fillColor = "#F4E2FF"); 
+				var fill1purple = #F4E2FF
+	
+					if (graph.datasets.points.value > 100) {
+   		 			graph.datasets.points.fillColor = fill1purple;
+    					graph.update();	
 		}
 	  }
 	});
