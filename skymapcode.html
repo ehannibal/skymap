@@ -1,0 +1,506 @@
+<!-- An example skymap of the first few HESE events -->
+
+<!DOCTYPE html>
+<html>
+<head>
+
+  <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+  <link rel="stylesheet" href="/resources/demos/style.css">
+  <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+  <script>
+  $( function() {
+    $( "input" ).checkboxradio();
+  } );
+  </script>
+
+<meta charset="UTF-8">
+<title>Skymap</title>
+<style>
+body {
+  background: #fcfcfa;
+}
+</style>
+</head>
+<body>
+
+<div class="widget">
+  <h2>Datasets (does nothing yet)</h2>
+  <fieldset>
+    <legend>Data sets: </legend>
+    <label for="checkbox-1">Neutrinos</label>
+    <input type="checkbox" name="checkbox-1" id="checkbox-1">
+    <label for="checkbox-2">Gamma Rays</label>
+    <input type="checkbox" name="checkbox-2" id="checkbox-2">
+    <label for="checkbox-3">Martians</label>
+    <input type="checkbox" name="checkbox-3" id="checkbox-3">
+    <label for="checkbox-4">Beans</label>
+    <input type="checkbox" name="checkbox-4" id="checkbox-4">
+  </fieldset>
+  </div>
+
+<script src="d3.v4.min.js"></script>
+<script src="d3-geo-projection.v2.min.js"></script>
+<script src="astro.js"></script>
+<script src="astro.constants.js"></script>
+<script src="astro.coordinates.js"></script>
+<script>
+// Object.assign polyfill
+if (typeof Object.assign != 'function') {
+  Object.assign = function(target, varArgs) { // .length of function is 2
+    'use strict';
+    if (target == null) { // TypeError if undefined or null
+      throw new TypeError('Cannot convert undefined or null to object');
+    }
+    var to = Object(target);
+    for (var index = 1; index < arguments.length; index++) {
+      var nextSource = arguments[index];
+      if (nextSource != null) { // Skip over if undefined or null
+        for (var nextKey in nextSource) {
+          // Avoid bugs when hasOwnProperty is shadowed
+          if (Object.prototype.hasOwnProperty.call(nextSource, nextKey)) {
+            to[nextKey] = nextSource[nextKey];
+          }
+        }
+      }
+    }
+    return to;
+  };
+}
+
+
+function toDegrees(angle) {
+  return angle * (180 / Math.PI);
+}
+function toRadians(angle) {
+  return angle * (Math.PI / 180);
+}
+
+var reset_styles = function(context) {
+  context.lineWidth = 1;
+  context.strokeStyle = 'black';
+  context.setLineDash([]);
+  context.fillStyle = 'black';
+  context.font = '10px sans-serif';
+}
+var draw = function(context, projection){
+  var raw_curve = d3.line()
+    .context(context);
+  var curve = d3.line()
+    .curve(d3.curveCardinal)
+    .x(function(d){ return projection(d)[0]; })
+    .y(function(d){ return projection(d)[1]; })
+    .context(context);
+  var safe_curve = d3.line()
+    .curve(d3.curveCardinal)
+    .defined(function(d){
+      if (d[0] < 0.2 || d[0] > 359.8)
+        return null;
+      if (d[1] < -90 || d[1] > 90)
+        return null;
+      return d;
+    })
+    .x(function(d){ return projection(d)[0]; })
+    .y(function(d){ return projection(d)[1]; })
+    .context(context);
+  var wrap_coords = function(coords) {
+    while (coords[1] < -90 || coords[1] > 90) {
+      if (coords[1] > 90)
+        coords[1] = 180 - coords[1];
+      else
+        coords[1] = -180 - coords[1];
+      coords[0] += 180;
+    }
+    while (coords[0] < -1) { coords[0] += 360; }
+    while (coords[0] > 361) { coords[0] -= 360; }
+    return coords;
+  }
+  return {
+    text: function(params) {
+      params = Object.assign({
+        coords: [],
+        offset: [5, -5],
+        font: "10px sans-serif",
+        color: "black",
+        text: ""
+      }, params);
+      params.coords = projection(params.coords);
+      var x = params.coords[0]+params.offset[0];
+      var y = params.coords[1]+params.offset[1]
+
+      context.font = params.font;
+      context.fillStyle = params.color;
+      context.fillText(params.text, x, y);
+      reset_styles(context);
+    },
+    line: function(params) {
+      params = Object.assign({
+        coords: [],
+        project: true, // project the coordinates
+        wrap: true,
+        strokeStyle: "black",
+        lineWidth: 1
+      }, params);
+
+      context.beginPath();
+      if (!params.project)
+        raw_curve(params.coords);
+      else if (params.wrap)
+        safe_curve(params.coords);
+      else
+        curve(params.coords);
+      context.strokeStyle = params.strokeStyle;
+      context.lineWidth = params.lineWidth;
+      context.stroke();
+      reset_styles(context);
+    },
+    circle: function(params){
+      params = Object.assign({
+        coords: [],
+        radius: 1,
+        wrap: true,
+        raw: false, // just project the coords, not the bounding circle
+        fill: false,
+        stroke: true,
+        fillStyle: "black",
+        strokeStyle: "black",
+        lineWidth: 1
+      }, params);
+      if (params.raw)
+        params.coords = projection(params.coords);
+      var data = [];
+      for(var i=0;i<2*Math.PI+.1;i+=Math.PI/500) {
+        var tmp = [params.coords[0] + params.radius * Math.cos(i),
+                   params.coords[1] + params.radius * Math.sin(i)];
+        if (params.wrap && !params.raw)
+          tmp = wrap_coords(tmp);
+        data.push(tmp);
+      }
+
+      if (params.fill) {
+        context.beginPath();
+        if (params.raw)
+          raw_curve(data);
+        else if (params.wrap)
+          safe_curve(data);
+        else
+          curve(data);
+        context.fillStyle = params.fillStyle;
+        context.fill();
+      }
+      if (params.stroke) {
+        context.beginPath();
+        if (params.raw)
+          raw_curve(data);
+        else if (params.wrap)
+          safe_curve(data);
+        else
+          curve(data);
+        context.strokeStyle = params.strokeStyle;
+        context.lineWidth = params.lineWidth;
+        context.stroke();
+      }
+      reset_styles(context);
+    }
+  }
+};
+
+var types = {
+  shower: function(draw, coords, radius){
+    var c = radius;
+    draw.line({
+      coords: [[coords[0]-c, coords[1]], [coords[0]+c, coords[1]]],
+      lineWidth: 2,
+      strokeStyle: 'white',
+      project: false
+    });
+    draw.line({
+      coords: [[coords[0], coords[1]-c], [coords[0], coords[1]+c]],
+      lineWidth: 2,
+      strokeStyle: 'white',
+      project: false
+    });
+  },
+  track: function(draw, coords, radius){
+    var c = Math.sqrt(radius*radius*2)/2;
+    draw.line({
+      coords: [[coords[0]-c, coords[1]-c], [coords[0]+c, coords[1]+c]],
+      lineWidth: 2,
+      strokeStyle: 'white',
+      project: false
+    });
+    draw.line({
+      coords: [[coords[0]-c, coords[1]+c], [coords[0]+c, coords[1]-c]],
+      lineWidth: 2,
+      strokeStyle: 'white',
+      project: false
+    });
+  }
+};
+
+astrojs.ready(function(e){
+
+//
+//
+//
+
+
+
+//WORKING AREA
+var stringtext = "";
+function readTextFile(file, ready)
+{
+
+   var rawFile = new XMLHttpRequest();
+    rawFile.open("GET", file);
+    rawFile.onload = function(data) {
+    	console.log("onload");
+    	console.log(data);
+    };
+    rawFile.overrideMimeType("text/plain; charset=x-user-defined");
+    rawFile.onreadystatechange = function ()
+    {
+        if(rawFile.readyState === 4)
+        {
+            if(rawFile.status === 200 || rawFile.status == 0)
+            {
+                stringtext = rawFile.responseText;
+                //console.log(rawFile);
+                ready(stringtext);
+
+            }
+        }
+    };
+    
+    rawFile.addEventListener("progress", function(){console.log("progress");});
+	rawFile.addEventListener("load", function(){console.log("load");});
+	rawFile.addEventListener("error", function(evt){
+		console.log("error");
+		console.log(evt);
+	});
+	rawFile.addEventListener("abort", function(){console.log("abort");});
+    rawFile.send();
+    
+
+}
+
+readTextFile("/output.txt", function(stringtext){
+var hese = [];
+	var param = {'type': [ 'Shower', 'Track' ], 'kind': ['Neutrino', 'bean','ostritch', 'GammaRay' ], 'energyMin': "0", 'energyMax' : '100'};
+console.log(param);
+	var words = stringtext.split("\n");
+	console.log(words);
+	for (var o  = 0; o < 20; o++)
+	{
+	//console.log(words[0]);
+	console.log("O : "+o);
+		var word = words[o].split(" ");
+		console.log(word[9] + "WORD 9");
+		//console.log(param);
+		//if (param['kind'].includes(word[9]){ //NOT WORKING FOR SOME REASON, RETURN TO THIS LATER
+			 if (param["type"].includes(word[7])){
+		 		if (param['energyMin'] <= word[11] && param['energyMax'] <= word[11]){
+            	    	    hese.splice(-1, 0, {dec: parseInt(word[1]), ra: parseInt(word[3]), err: parseInt(word[5]), type: types[word[7].toLowerCase()], kind: word[9]});
+            	}
+			 }
+		//}
+		
+		 
+		
+		//hese.splice(-1, 0, {'dec': word[1], 'ra': word[3], 'err': word[5], 'type': types[word[7].toLowerCase()], 'kind': "Neutrino"});
+	}
+	console.log("TYPE" + hese[7]["type"]);
+	console.log(hese);
+	
+
+//Data from emm
+	/*hese.splice(-1,0,
+	{dec: -1.8, ra: 35.2, err: 16.3, type: types.shower},
+	{dec: -28.0, ra: 282.6, err: 25.4, type: types.shower},   
+	{dec: -31.2, ra: 127.9, err: 1.4, type: types.track},
+    {dec: -51.2, ra: 169.5, err: 7.1, type: types.shower},
+    {dec: -.04, ra: 110.6, err: 1.2, type: types.track},
+    {dec: -27.2, ra: 133.9, err: 9.8, type: types.shower},
+    {dec: -45.1, ra: 15.6, err: 24.1, type: types.shower},
+   	{dec: -21.2, ra: 182.4, err: 1.3, type: types.track},
+   	{dec: 33.6, ra: 151.3, err: 16.5, type: types.shower},
+	{dec: -29.4, ra: 5.0, err: 8.1, type: types.shower},
+	{dec: -8.9, ra: 155.3, err: 16.7, type: types.shower},   		
+	{dec: -52.8, ra: 296.1, err: 9.8, type: types.shower},
+	{dec: 40.3, ra: 67.9, err: 1.2, type: types.track},
+	{dec: -27.9, ra: 265.6, err: 13.2, type: types.shower},   	
+	{dec: -49.7, ra: 287.3, err: 19.7, type: types.shower}, 
+	{dec: -22.6, ra: 192.1, err: 19.4, type: types.shower}, 
+	{dec: 14.5, ra: 247.4, err: 11.6, type: types.shower}, 
+	{dec: -24.8, ra: 345.6, err: 1.3, type: types.track}, 
+	{dec: -59.7, ra: 76.9, err: 9.7, type: types.shower}, 
+	{dec: -67.2, ra: 38.3, err: 10.7, type: types.shower}, 
+	{dec: -24.0, ra: 9.0, err: 20.9, type: types.shower}, 
+	{dec: -22.1, ra: 293.7, err: 12.1, type: types.shower}, 
+	{dec: -13.2, ra: 208.7, err: 1.9, type: types.track}, 	
+	{dec: -15.1, ra: 282.2, err: 15.5, type: types.shower}, 
+	{dec: -14.5, ra: 286.0, err: 46.3, type: types.shower}, 
+	{dec: 22.7, ra: 143.4, err: 11.8, type: types.shower}, 
+	{dec: -12.6, ra: 121.7, err: 6.6, type: types.shower}, 
+	{dec: -71.5, ra: 164.8, err: 1.3, type: types.track}, 
+	{dec: 41.0, ra: 298.1, err: 7.4, type: types.shower}, 
+	{dec: -82.7, ra: 103.2, err: 8.0, type: types.shower}, 
+	{dec: 78.3, ra: 146.1, err: 26.0, type: types.shower},
+	{dec: 7.8, ra: 292.5, err: 13.5, type: types.shower}, 
+	{dec: 31.3, ra: 323.4, err: 42.7, type: types.shower}, 
+	{dec: -55.8, ra: 208.4, err: 15.9, type: types.shower}, 
+	{dec: -3.0, ra: 257.7, err: 11.7, type: types.shower}, 
+	{dec: 20.7, ra: 167.3, err: 1.2, type: types.track}, 
+	{dec: 14.0, ra: 93.3, err: 1.2, type: types.track}, 
+	{dec: -17.9, ra: 106.2, err: 14.2, type: types.shower}, 
+	{dec: -48.5, ra: 143.9, err: 11.7, type: types.shower}, 
+	{dec: 3.3, ra: 66.1, err: 11.1, type: types.shower}, 
+	{dec: -25.3, ra: 42.5, err: 20.7, type: types.shower}, 
+	{dec: -22.0, ra: 206.6, err: 1.3, type: types.track}, 
+	{dec: 0.0, ra: 336.7, err: 1.2, type: types.track},  
+	{dec: -86.3, ra: 219.0, err: 1.2, type: types.track}, 
+	{dec: -22.3, ra: 150.5, err: 7.6, type: types.shower}, 
+	{dec: 67.4, ra: 209.4, err: 1.2, type: types.track}, 
+	{dec: -33.2, ra: 213.0, err: 8.1, type: types.shower}, 
+	{dec: -26.3, ra: 203.2, err: 21.8, type: types.shower}, 
+	{dec: 59.3, ra: 168.6, err: 8.2, type: types.shower}, 
+	{dec: 54.0, ra: 88.6, err: 6.5, type: types.shower}, 
+	{dec: -54.0, ra: 252.8, err: 7.8, type: types.shower}, 
+	{dec: -37.7, ra: 239.0, err: 1.2, type: types.track}, 
+	{dec: 6.0, ra: 170.5, err: 11.6, type: types.shower}
+	  );*/
+	  
+	  // make a canvas
+	  var width = 960,
+		  height = 500;
+	  var canvas = d3.select("body").append("canvas")
+		.attr("width", width)
+		.attr("height", height);
+	  var context = canvas.node().getContext("2d");
+	  var coords, coords2;
+	  var projection = d3.geoMollweide()
+		  .scale(165)
+		  .translate([width / 2, height / 2])
+		  .precision(.1);
+
+	  // mirror the projection so it matches official plots
+	  var project = function(d) {
+		return projection([(d[0]-180)*-1,d[1]]);
+	  };
+
+	  // add background
+	  var path = d3.geoPath()
+		  .projection(projection)
+		  .context(context);
+	  var graticule = d3.geoGraticule()
+			  .step([30, 30]);
+	  context.clearRect(0,0,width,height);
+	  context.beginPath();
+	  path({type: "Sphere"});
+	  context.lineWidth = 2;
+	  context.stroke();
+	  reset_styles(context);
+
+	  context.beginPath();
+	  path(graticule());
+	  context.strokeStyle = 'grey';
+	  context.setLineDash([1,6]);
+	  context.stroke();
+	  reset_styles(context);
+
+	  var mydraw = draw(context,project);
+
+	  // make equator
+	  mydraw.line({
+		coords: [[0,0],[360,0]],
+		wrap: false,
+		strokeStyle: "grey"
+	  });
+
+	  // make galactic plane
+	  var plane_data = [];
+	  for(var i=-180;i<180;i+=.1) {
+		var tmp = astrojs.coordinates.galactic2equatorial(i,0);
+		plane_data.push([tmp.ra, tmp.dec]);
+	  }  
+	  mydraw.line({
+		coords: plane_data,
+		strokeStyle: "grey"
+	  });
+
+	  // draw hese data
+	  for (var i=0;i<hese.length;i++) {
+	  //console.log("I at 345: " + i);
+	  //console.log("hese at i: " + hese[0]['kind']);
+	  
+	  if (hese[i]["kind"] == "Neutrino"){
+	  console.log("err at " + i +": " + hese[i]['err']);
+		mydraw.circle({
+		  coords: [hese[i].ra, hese[i].dec],
+		  radius: 6,
+		  fill: true,
+		  stroke: false,
+		  fillStyle: "red",
+		  raw: true
+		})
+		if (hese[i].type != undefined && hese[i].type != null) {
+		  hese[i].type(mydraw, project([hese[i].ra, hese[i].dec]), 6);
+		}
+		mydraw.text({
+		  coords: [hese[i].ra, hese[i].dec],
+		  font: "16px sans-serif",
+		  text: ""+(i+1)
+		});
+		if (hese[i].err > 6)
+		console.log("IN ERR DRAWER");
+		  mydraw.circle({
+			coords: [hese[i].ra, hese[i].dec],
+			radius: hese[i].err,
+			strokeStyle: "red",
+			wrap: true
+		  });
+	  }
+	  
+	  if (hese[i]["kind"] == "GammaRay"){
+		mydraw.circle({
+		  coords: [hese[i].ra, hese[i].dec],
+		  radius: 6,
+		  fill: true,
+		  stroke: false,
+		  fillStyle: "green",
+		  raw: true
+		})
+		mydraw.circle({
+		  coords: [hese[i].ra, hese[i].dec],
+		  radius: 3,
+		  fill: true,
+		  stroke: false,
+		  fillStyle: "black",
+		  raw: true
+		})
+		/*   Gamma Rays don't have types.
+		if (hese[i].type != undefined && hese[i].type != null) {
+		  hese[i].type(mydraw, project([hese[i].ra, hese[i].dec]), 6);
+		}*/
+		mydraw.text({
+		  coords: [hese[i].ra, hese[i].dec],
+		  font: "16px sans-serif",
+		  text: ""+(i+1)
+		});
+		if (hese[i].err > 6)
+		  mydraw.circle({
+			coords: [hese[i].ra, hese[i].dec],
+			radius: hese[i].err,
+			strokeStyle: "green",
+			wrap: true
+		  });
+	  }
+	  
+		function findColor(i){//WORK ON
+			
+		}
+	  }
+	});
+});
+</script>
+</body>
